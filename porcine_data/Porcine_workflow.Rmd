@@ -1,0 +1,82 @@
+---
+title: "Porcine data workflow"
+output: html_document
+params:
+  repo_path:
+    label: "Select the folder containing the repo on your local device"
+    value: "C:/Users/anna-/OneDrive/Documents/Functional_Modelling_of_Melatonin_Action_in_the_Placenta"
+    input: file
+    type: directory
+  
+---
+
+# Setup
+
+```{r setup, include=FALSE}
+#read in required packages
+library(readr)
+library(limma)
+library(edgeR)
+library(stringr)
+library(pheatmap)
+library(gplots)
+library(tidyverse)
+library(tidyr)
+library(biomaRt)
+library(dplyr)
+library(umap)
+library(Glimma)
+library(RColorBrewer)
+library(mclust)
+library(rgl)
+library(entropy)
+library(pheatmap)
+
+#file path to data
+file_path <- file.path(params$repo_path, "porcine_data/porcine_counts.txt")
+
+#Read in data
+data <- read.table(file_path, header=TRUE)
+
+#set row names to GeneID
+rownames(data) <- data$Geneid # sets row names to GeneID
+
+```
+
+# Mapping the Gene names using the Ensembl database
+
+``` {r Map gene names using the ensembl database}
+
+Geneid <- data$Geneid #Extract all gene names
+
+#Connect to porcine Ensembl dataset (use archived host to avoid server error):
+ensembldatabase <- useMart(biomart="ensembl", dataset = "sscrofa_gene_ensembl", verbose=TRUE, host="https://feb2021.archive.ensembl.org")
+
+#Set up a query to convert the gene names (use getBM when only using one database, get LDS for two):
+gene_names <- getBM(attributes = c("ensembl_gene_id", "external_gene_name"),
+                    filters ="ensembl_gene_id",
+                    values = Geneid,
+                    mart = ensembldatabase)
+
+```
+
+``` {r formatting mapped gene names}
+
+#GENENAME = external name
+#GENEID = ensembl ID
+colnames(gene_names)[1] <- 'Geneid'
+colnames(gene_names)[2] <- 'GENENAME'
+
+gene_names$GENENAME <-as.character(gene_names$GENENAME)
+gene_names$GENENAME <- make.unique(gene_names$GENENAME,sep = "~")
+
+#Join data to new gene_names
+data1 <- data %>% left_join(gene_names, by = c("Geneid"))
+
+#check there are no NAs
+any(is.na(data1$Geneid))
+
+genes <- data1$GENENAME# takes first column as gene name
+rownames(data1) <- make.unique(genes,sep = "~") #reimput geneID as row names. This will add .1 to the end of gene names
+
+
