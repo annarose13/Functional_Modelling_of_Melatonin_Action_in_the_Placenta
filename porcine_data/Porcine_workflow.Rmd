@@ -1,18 +1,13 @@
----
-title: "Porcine data workflow"
-output: html_document
-params:
-  repo_path:
-    label: "Select the folder containing the repo on your local device"
-    value: "C:/Users/anna-/OneDrive/Documents/Functional_Modelling_of_Melatonin_Action_in_the_Placenta"
-    input: file
-    type: directory
-  
----
+
+This code includes all processing of the porcine data used in the study. Please note that this begins with a txt file of the raw counts. This file had been generated (including alignment) from the original BAM files from the study by Wang et. al.
+
+This script details how the Porcine Count data was provided with ensembl Ids, so these were converted into standard gene names, before being converted into human orthologs. Further preprocessing then took place, followed by conducting hypergraph analyses.
+
+To run this script, please open a project within the repository, and ensure the working directory is set to within the `porcine_data` folder.
 
 # Setup
 
-```{r setup, include=FALSE}
+```{r setup}
 #read in required packages
 library(readr)
 library(limma)
@@ -33,21 +28,21 @@ library(entropy)
 library(pheatmap)
 
 #file path to data
-file_path <- file.path(params$repo_path, "porcine_data/porcine_counts.txt")
+file_path <- file.path(getwd(),"porcine_counts.txt")
 
 #Read in data
-data <- read.table(file_path, header=TRUE)
+raw_data <- read.table(file_path, header=TRUE)
 
 #set row names to GeneID
-rownames(data) <- data$Geneid # sets row names to GeneID
+rownames(raw_data) <- raw_data$Geneid # sets row names to GeneID
 
 ```
 
-# Mapping the Gene names using the Ensembl database
+# PART 1: Mapping the Gene names using the Ensembl database
 
 ``` {r Map gene names using the ensembl database}
 
-Geneid <- data$Geneid #Extract all gene names
+Geneid <- raw_data$Geneid #Extract all gene names
 
 #Connect to porcine Ensembl dataset (use archived host to avoid server error):
 ensembldatabase <- useMart(biomart="ensembl", dataset = "sscrofa_gene_ensembl", verbose=TRUE, host="https://feb2021.archive.ensembl.org")
@@ -60,23 +55,291 @@ gene_names <- getBM(attributes = c("ensembl_gene_id", "external_gene_name"),
 
 ```
 
-``` {r formatting mapped gene names}
+## Formatting the mapped gene name columns
+
+``` {r format gene name columns}
 
 #GENENAME = external name
 #GENEID = ensembl ID
-colnames(gene_names)[1] <- 'Geneid'
+
+colnames(gene_names)[1] <- 'GENEID'
 colnames(gene_names)[2] <- 'GENENAME'
 
 gene_names$GENENAME <-as.character(gene_names$GENENAME)
-gene_names$GENENAME <- make.unique(gene_names$GENENAME,sep = "~")
+#remove rows with blanks only
+gene_names_clean <- gene_names[trimws(gene_names$GENENAME) != "",]
 
-#Join data to new gene_names
-data1 <- data %>% left_join(gene_names, by = c("Geneid"))
+length(unique(gene_names$GENENAME)) #There are duplicated gene names, these need to be made unique
+gene_names_clean$GENENAME <- make.unique(gene_names_clean$GENENAME,sep = "~") #This includes genes without a corresponding gene name
 
-#check there are no NAs
-any(is.na(data1$Geneid))
+data <- raw_data[row.names(raw_data) %in% gene_names_clean$GENEID,]#remove any genes that don't match with identifier 
+genes <- gene_names_clean$GENENAME #create chr vector of gene names
 
-genes <- data1$GENENAME# takes first column as gene name
-rownames(data1) <- make.unique(genes,sep = "~") #reimput geneID as row names. This will add .1 to the end of gene names
+# Check if data$Geneid is in the same order as gene_names$GENEID
+is_same_order <- all(identical(data$Geneid, gene_names_clean$GENEID))
+# Print the result
+print(is_same_order)
+#This was false, used match function:
+gene_names <- gene_names_clean[match(data$Geneid, gene_names_clean$GENEID), ]
+#check again:
+is_same_order <- all(identical(data$Geneid, gene_names$GENEID))
+print(is_same_order)
+
+```
+
+## Joining the dataframes
+
+``` {r merge the two dataframes}
+
+#merge the data frames based on Geneid column
+merged_data <- merge(data, gene_names, by.x = "Geneid", by.y = "GENEID", all.x = TRUE)
+#Move GENENAME column to the beginning
+merged_data <- cbind(merged_data[ncol(merged_data)], merged_data[-ncol(merged_data)])
+
+#rename for clarity
+data1 <- merged_data
+
+rownames(data1) <- make.unique(genes,sep = "~") #Make geneIDs row names, and ensure they are unique
+
+drop <- c("Chr", "Start", "End", "Strand", "Length", "Geneid", "GENENAME") # removing unnecessary columns
+data1 <- data1[, !(names(data1) %in% drop)]
+rm(drop)
+
+#rename columns to just sample names
+colnames(data1) <- regmatches(colnames(data1), regexpr("SRR[0-9]+", colnames(data1)))
+
+#remove any duplicated rows
+remove_rows_with_tilde <- function(df) {
+  df[!grepl("~", rownames(df)), ]}
+
+data1 <- remove_rows_with_tilde(data1)
+
+
+```
+
+```{r check that the sample names match sample info}
+
+sample_info_file_path <- file.path(getwd(),"porcine_sample_info.csv")
+sample_info <- read.csv(sample_info_file_path, header=TRUE)
+
+#Check if the colname are there and assigns them to melatonin, if not then they will be assigned to control
+#need to reorder count data cols to match the sample_info data
+data2 <- data1[,c(na.omit(match(sample_info$run,colnames(data1))))]
+
+## Overall data should have sample number as colnames and genes as rownames ###
+```
+
+```{r save data}
+
+write.csv(data2, paste0(getwd(),"/porcine_data/formatted_porcine_counts.csv"))
+
+```
+
+
+
+# PART 2: Creating comparison groups, filtering and normalising the data
+This section uses EdgeR, following the glm approach.
+
+```{r set-up before normalisation}
+The group needs to be a list of values e.g. group<-factor(c(1,1,2,2))
+
+# specify which column describes your groups #
+group <- sample_info$group
+design <- model.matrix(~0+group) #This is a design matrix without an intercept (~0). 
+
+### CHECK THAT THESE ARE THE CORRECT WAY ROUND --- = case - control
+# specify name of group comparisons and the column numbers to compare #all standard EdgeR stuff
+#make contrasts generates a contrast matrix for the coefficients in a linear model
+#This one is comparing between the melatonin and control groups
+my_contrast <- makeContrasts(melatoninvscontrol = groupmelatonin - groupcontrol,levels= design) 
+
+######CHECK THIS IS THE RIGHT WAY AROUND!!!
+groups <- group %in% c("control","melatonin") #control goes first in list, change according to your data and change for each analysis
+
+
+```
+
+
+## Filtering and normalising
+
+```{r}
+data1[, 1] <- as.numeric(data1[, 1]) #converts data to numeric form
+data1[, 2] <- as.numeric(data1[, 2])
+data1[, 3] <- as.numeric(data1[, 3])
+data1[, 4] <- as.numeric(data1[, 4])
+
+edgeRformat_data <- DGEList(counts=data1, group=group) # DGElist is the data object that is being analysed with a grouping factor
+keep <- filterByExpr(edgeRformat_data) #filters out lowly expressed
+edgeRformat_data <- edgeRformat_data[keep,,keep.lib.sizes=F] #more filtering
+edgeRformat_data <- calcNormFactors(edgeRformat_data) #normalises for library sizes
+edgeRformat_data <- estimateDisp(edgeRformat_data, design) #recommended to estimate common dispersion and tagwise in one go
+fit <- glmQLFit(edgeRformat_data, design) # this fits the negative binomial GLM for each tag(aka DEG) and produces a new object DGEGLM
+
+
+
+```
+
+
+## Running the differential gene expression and converting to human orthologs
+```{r}
+# run this for different groups #
+
+qlf.2v1 <- glmQLFTest(fit, contrast = my_contrast[,"melatoninvscontrol"]) # dispersion estimation and hypothesis testing (the QL Test)
+dge_output <- topTags(qlf.2v1, n=Inf, p.value = 0.05)$table
+
+#### CONVERT PORCINE DEGs TO HUMAN ####
+#Extract DEG names from the rownames
+porcine_gene_names <- rownames(dge_output)
+
+#Connect to Ensembl datasets (use old archive to avoid server error)
+human <- useMart(biomart="ensembl", dataset = "hsapiens_gene_ensembl", verbose=TRUE, host="https://feb2021.archive.ensembl.org")
+porcine <- useMart(biomart="ensembl", dataset = "sscrofa_gene_ensembl", verbose=TRUE, host="https://feb2021.archive.ensembl.org")
+
+#Set up a query to convert the gene names using the get LDS function:
+genesV2 <- getLDS(attributes = c("external_gene_name"),
+                  filters ="external_gene_name",
+                  values = porcine_gene_names,
+                  mart = porcine,
+                  attributesL = c("hgnc_symbol"),
+                  martL = human,
+                  uniqueRows = TRUE)
+
+#Check for duplicates:
+duplicates <- genesV2[duplicated(genesV2$HGNC.symbol), ]
+duplicates
+
+# Match row names (GeneID) in dge_output with GeneID in genesV2
+matched_genes <- intersect(rownames(dge_output), genesV2$Gene.name) #These are the pig genes that have a human ortholog
+
+# Add HGNC.symbol column to dge_output based on matching row names
+dge_output$HGNC.symbol <- NA  # make a new column
+match_indices <- match(rownames(dge_output), genesV2$Gene.name)
+dge_output$HGNC.symbol <- genesV2$HGNC.symbol[match_indices]
+dge_output<- dge_output[!is.na(dge_output$HGNC.symbol), ]#omit rows without human ortholog
+
+#write.csv(dge_output, row.names=TRUE, "C:/Users/anna-/OneDrive/Documents/Anna/MSc. Reproduction and Pregnancy/Research Project 2/pig/DEGs_MELvsNormal.csv")
+#write.csv(data1, row.names=TRUE, "~/RP2/pig/new/processedporcinedata.csv")
+
+```
+
+# STEP 3: Running the PCA
+
+```{r PCA}
+# Get log2 counts per million
+logcounts <- cpm(edgeRformat_data,log = T) #cpm is counts per million. this is edgeR function
+
+#write.csv(logcounts, "porcine_logcounts.csv")
+
+## ONLY NEED TO RUN ONCE --- PCA for all of the data - not for the analysis chosen ##
+pcadata_all<-pca(t(logcounts),ncomp = 2) #pca analysis, ncomp is number of principal components
+
+#calculate variance
+eigs <- pcadata_all$sdev^2 #calculates the variance (eigenvalues) of the PCs
+PCA1_all_var <- eigs[1] / sum(eigs) #calculates the proportion of total variance explained by first PC
+PCA1_all_var<-round(PCA1_all_var,digits = 2)*100 #rounds to 2 decimal places and converts to %
+
+eigs <- pcadata_all$sdev^2 
+PCA2_all_var <- eigs[2] / sum(eigs) #calculates the proportion of total variance explained by second PC
+PCA2_all_var<-round(PCA2_all_var,digits = 2)*100 #rounds and converts to %
+
+pcadata_plot <- data.frame(pcadata_all$variates$X[,1:2], 
+                           group=sample_info$group) #extracts pca scores, adds column called group
+
+#plotting PCs and saving to device
+#svg("C:/Users/anna-/OneDrive/Documents/Anna/MSc. Reproduction and Pregnancy/Research Project 2/pig/pig_analysis_PCA.svg", height = 10, width = 10)
+#ggplot(data=pcadata_plot,aes(x=PC1,y=PC2,col=group,))+
+# geom_point(size=5)+
+# theme_bw(base_size = 22)+
+# labs(title= "PCA for all samples")+
+# xlab(label= paste("PCA1 (variance = ", PCA1_all_var, "%)",sep=""))+
+# ylab(label= paste("PCA2 (variance = ", PCA2_all_var, "%)",sep=""))
+#dev.off() #this closes the plot window
+
+
+#plot MDS using Glimma - this will open a web browser page and produce an interactive graph
+#MDS (multidimensional scaling) is used to map data into 2D space
+#labels <- paste(sample_info$group, sample_info$sample_name)
+#group <- sample_info$group
+#glMDSPlot(logcounts, labels=labels, groups=group, folder="mds")
+
+
+```
+
+
+```{r Hypergraph for heatmap}
+
+#Porcine Transcriptome vs. DEGs
+
+data1<- read.csv("~/RP2/pig/new/processedporcinedata.csv")
+
+#First ensure that data1 is in matrix form:
+data1 <- as.matrix(data1)
+
+#check genes are col headings, samples are row headings
+#data1 <- t(data1)
+
+#Remove SD's of 0 and rename df
+sd.scores1<-apply(data1,2,sd)
+data2<-data1[,which(sd.scores1>0)]
+
+#Correlation
+cor_data_allporcine <- cor(data2, data2)
+
+## Construct the Hypergraph:
+#As there are only 4 samples, it would be inappropriate to use +/- 1SD to binarise the matrix
+#In cases of low n, use a percentile cut off. Aim to get a few hundred genes. Should be between 90 and 95%.
+
+PORCINE_DEGs <- genesV2$Gene.name #character vector of DEGs
+result_df <- data.frame() #Create empty data frame
+cor_data_allvsdegs <- cor_data_allporcine[,-na.omit(match(PORCINE_DEGs, colnames(cor_data_allporcine)))] #This removes the DEGs from the colnames of correlation matrix
+cor_data_allvsdegs <- cor_data_allvsdegs[na.omit(match(PORCINE_DEGs, rownames(cor_data_allporcine))),] # This ensures only the DEGs are in the rows
+bin_allvsdegs<-abs(cor_data_allvsdegs) # Take absolute values
+
+bin_allvsdegs[which(bin_allvsdegs >= quantile(cor_data_allvsdegs, 0.95))]<-1 #Binarize based on percentile of r-value
+bin_allvsdegs[which(bin_allvsdegs!=1)]<-0 # all other values assume 0 - this is the incidence matrix
+
+hyp_allvsdegs <-bin_allvsdegs %*% t(bin_allvsdegs) #multiply by transpose - this is the adjacency matrix 
+allvsdegs_entropy_result<- entropy(hyp_allvsdegs)
+result_df <- rbind(result_df,allvsdegs_entropy_result)
+
+## PLOT THE HEATMAP ##
+allvsdegs_hm <- pheatmap::pheatmap(hyp_allvsdegs, fontsize_row = 2,fontsize_col = 2,cutree_rows = 2,cutree_cols = 2)
+allvsdegs_hm_clusters <- as.data.frame(cutree(allvsdegs_hm$tree_row,2))
+#optional creating column with the names of the nodes
+allvsdegs_hm_clusters$Gene <- rownames(allvsdegs_hm_clusters)
+
+
+```
+
+```{r Correspondence Analysis}
+
+#Separating out into 2 dataframes, each containing names of nodes in that cluster
+#I just check the number of datapoints to see which cluster is which (normally pretty obvious from heatmap)
+allvsdegs_hm_cluster_1 <- as.data.frame(allvsdegs_hm_clusters[which(allvsdegs_hm_clusters$`cutree(allvsdegs_hm$tree_row, 2)` == 2),])
+allvsdegs_hm_cluster_2 <- as.data.frame(allvsdegs_hm_clusters[which(allvsdegs_hm_clusters$`cutree(allvsdegs_hm$tree_row, 2)` == 1),])
+## Overall - this is a list of the genes in the central cluster
+# Put this into a character vector
+allvsdegs_central_cluster<- allvsdegs_hm_cluster_2$Gene
+#Restrict the rows to only include genes in central cluster
+row_restricted_allvsdegs <- bin_allvsdegs[na.omit(match(allvsdegs_central_cluster,rownames(bin_allvsdegs))),]
+#Restrict columns to only include genes from STB_1 that are correlated with every central cluster gene
+galois_allvsdegs <- row_restricted_allvsdegs [,which(colSums(row_restricted_allvsdegs)==length(allvsdegs_central_cluster))]
+galois_allvsdegs <- as.data.frame(galois_allvsdegs)
+galois_allvsdegs <- tibble::rownames_to_column(galois_allvsdegs)
+
+
+```
+
+``` {r Identification of specific genes of interest}
+
+#### expression of key genes (logcounts) ####
+#convert logcounts from matrix to DataFrame:
+logcounts <- as.data.frame(logcounts)
+
+genes_of_interest <- c("MTNR1A", "MTNR1B", "AANAT", "ASMT")
+subset_logcounts <- logcounts[rownames(logcounts) %in% genes_of_interest, ]
+print(subset_logcounts)
+
+```
 
 
