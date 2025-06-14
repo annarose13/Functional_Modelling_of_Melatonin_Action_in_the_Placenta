@@ -29,7 +29,7 @@ library(pheatmap)
 library(pcaMethods)
 
 #file path to data
-file_path <- file.path(getwd(),"porcine_data/porcine_counts.txt")
+file_path <- file.path(getwd(),"porcine_counts.txt")
 
 #Read in data
 raw_data <- read.table(file_path, header=TRUE)
@@ -243,8 +243,6 @@ PCA1_all_var<-round(PCA1_all_var,digits = 2)*100 #rounds to 2 decimal places and
 PCA2_all_var <- eigs[2] / sum(eigs) #calculates the proportion of total variance explained by second PC
 PCA2_all_var<-round(PCA2_all_var,digits = 2)*100 #rounds and converts to %
 
-#pcadata_plot <- data.frame(pcadata_all$variates$X[,1:2], 
-                           group=sample_info$group) #extracts pca scores, adds column called group
 
 loadings_df <- as.data.frame(pcadata_all@loadings,group=sample_info$group)
 
@@ -256,6 +254,7 @@ loading_plot<- ggplot(loadings_df, aes(x = PC1, y = PC2)) +
   labs(title = "PCA Loadings: Genes",
        x = "PC1 Loading",
        y = "PC2 Loading")
+
 loading_plot
 
 
@@ -278,7 +277,7 @@ data1<- read.csv(getwd(),"/formatted_porcine_counts.csv")
 data1 <- as.matrix(data1)
 
 #check genes are col headings, samples are row headings
-#data1 <- t(data1)
+data1 <- t(data1)
 
 #Remove SD's of 0 and rename df
 sd.scores1<-apply(data1,2,sd)
@@ -305,7 +304,7 @@ allvsdegs_entropy_result<- entropy(hyp_allvsdegs)
 result_df <- rbind(result_df,allvsdegs_entropy_result)
 
 ## PLOT THE HEATMAP ##
-allvsdegs_hm <- pheatmap::pheatmap(hyp_allvsdegs, fontsize_row = 2,fontsize_col = 2,cutree_rows = 2,cutree_cols = 2)
+allvsdegs_hm <- pheatmap(hyp_allvsdegs, fontsize_row = 2,fontsize_col = 2,cutree_rows = 2,cutree_cols = 2)
 allvsdegs_hm_clusters <- as.data.frame(cutree(allvsdegs_hm$tree_row,2))
 #optional creating column with the names of the nodes
 allvsdegs_hm_clusters$Gene <- rownames(allvsdegs_hm_clusters)
