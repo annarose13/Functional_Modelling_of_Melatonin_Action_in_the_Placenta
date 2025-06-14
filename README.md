@@ -59,7 +59,7 @@ of the accompanying dissertation.
 
 <br>
 
-\###It is recommended to run the scripts in the following order:
+### It is recommended to run the scripts in the following order:
 
 1.  `porcine_data/Porcine_Bulkseq_Preprocessing_and_Hypergraph_Analysis.R`
 
