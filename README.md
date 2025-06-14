@@ -40,12 +40,16 @@ of the accompanying dissertation.
     process and analyse the third trimester single-cell RNA sequencing
     data.
 
--   `hypergraphs/` - This directory contains an example script of how
-    each hypergraph was created.
+-   `hypergraphs/` - This directory contains the scripts that were used
+    to generate the control genes for hypergraph analysis, conduct the
+    hypergraph analysis, calculate the Z-scores, and perform
+    correspondence analysis. There is also a .csv that gives the list of
+    melatonin related genes that were generated form cytoscape and the
+    human orthologs of the DEGs identified from the porcine study.
 
--   `README.md` - This file.
+-   `README.md`
 
--   `.gitignore` - git exclusions
+-   `.gitignore`
 
 <br>
 
