@@ -26,6 +26,7 @@ library(mclust)
 library(rgl)
 library(entropy)
 library(pheatmap)
+library(pcaMethods)
 
 #file path to data
 file_path <- file.path(getwd(),"porcine_counts.txt")
@@ -137,17 +138,21 @@ write.csv(data2, paste0(getwd(),"/porcine_data/formatted_porcine_counts.csv"))
 
 
 
+
+
 # PART 2: Creating comparison groups, filtering and normalising the data
-This section uses EdgeR, following the glm approach.
+
+This section uses EdgeR, and follows the glm approach.
 
 ```{r set-up before normalisation}
-The group needs to be a list of values e.g. group<-factor(c(1,1,2,2))
+
+#The group needs to be a list of values e.g. group<-factor(c(1,1,2,2))
 
 # specify which column describes your groups #
 group <- sample_info$group
 design <- model.matrix(~0+group) #This is a design matrix without an intercept (~0). 
 
-### CHECK THAT THESE ARE THE CORRECT WAY ROUND --- = case - control
+### ALWAYS CHECK THAT THESE ARE THE CORRECT WAY ROUND --- = case - control
 # specify name of group comparisons and the column numbers to compare #all standard EdgeR stuff
 #make contrasts generates a contrast matrix for the coefficients in a linear model
 #This one is comparing between the melatonin and control groups
@@ -155,7 +160,6 @@ my_contrast <- makeContrasts(melatoninvscontrol = groupmelatonin - groupcontrol,
 
 ######CHECK THIS IS THE RIGHT WAY AROUND!!!
 groups <- group %in% c("control","melatonin") #control goes first in list, change according to your data and change for each analysis
-
 
 ```
 
@@ -174,7 +178,6 @@ edgeRformat_data <- edgeRformat_data[keep,,keep.lib.sizes=F] #more filtering
 edgeRformat_data <- calcNormFactors(edgeRformat_data) #normalises for library sizes
 edgeRformat_data <- estimateDisp(edgeRformat_data, design) #recommended to estimate common dispersion and tagwise in one go
 fit <- glmQLFit(edgeRformat_data, design) # this fits the negative binomial GLM for each tag(aka DEG) and produces a new object DGEGLM
-
 
 
 ```
@@ -217,8 +220,7 @@ match_indices <- match(rownames(dge_output), genesV2$Gene.name)
 dge_output$HGNC.symbol <- genesV2$HGNC.symbol[match_indices]
 dge_output<- dge_output[!is.na(dge_output$HGNC.symbol), ]#omit rows without human ortholog
 
-#write.csv(dge_output, row.names=TRUE, "C:/Users/anna-/OneDrive/Documents/Anna/MSc. Reproduction and Pregnancy/Research Project 2/pig/DEGs_MELvsNormal.csv")
-#write.csv(data1, row.names=TRUE, "~/RP2/pig/new/processedporcinedata.csv")
+write.csv(dge_output, row.names=TRUE, paste0(getwd(),"/DEGs_MELvsNormal.csv"))
 
 ```
 
@@ -228,40 +230,40 @@ dge_output<- dge_output[!is.na(dge_output$HGNC.symbol), ]#omit rows without huma
 # Get log2 counts per million
 logcounts <- cpm(edgeRformat_data,log = T) #cpm is counts per million. this is edgeR function
 
-#write.csv(logcounts, "porcine_logcounts.csv")
+write.csv(logcounts, paste0(getwd(), "/porcine_logcounts.csv"))
 
 ## ONLY NEED TO RUN ONCE --- PCA for all of the data - not for the analysis chosen ##
 pcadata_all<-pca(t(logcounts),ncomp = 2) #pca analysis, ncomp is number of principal components
 
 #calculate variance
-eigs <- pcadata_all$sdev^2 #calculates the variance (eigenvalues) of the PCs
+eigs <- pcadata_all@sDev^2 #calculates the variance (eigenvalues) of the PCs
 PCA1_all_var <- eigs[1] / sum(eigs) #calculates the proportion of total variance explained by first PC
 PCA1_all_var<-round(PCA1_all_var,digits = 2)*100 #rounds to 2 decimal places and converts to %
 
-eigs <- pcadata_all$sdev^2 
 PCA2_all_var <- eigs[2] / sum(eigs) #calculates the proportion of total variance explained by second PC
 PCA2_all_var<-round(PCA2_all_var,digits = 2)*100 #rounds and converts to %
 
-pcadata_plot <- data.frame(pcadata_all$variates$X[,1:2], 
+#pcadata_plot <- data.frame(pcadata_all$variates$X[,1:2], 
                            group=sample_info$group) #extracts pca scores, adds column called group
 
+loadings_df <- as.data.frame(pcadata_all@loadings,group=sample_info$group)
+
+
 #plotting PCs and saving to device
-#svg("C:/Users/anna-/OneDrive/Documents/Anna/MSc. Reproduction and Pregnancy/Research Project 2/pig/pig_analysis_PCA.svg", height = 10, width = 10)
-#ggplot(data=pcadata_plot,aes(x=PC1,y=PC2,col=group,))+
-# geom_point(size=5)+
-# theme_bw(base_size = 22)+
-# labs(title= "PCA for all samples")+
-# xlab(label= paste("PCA1 (variance = ", PCA1_all_var, "%)",sep=""))+
-# ylab(label= paste("PCA2 (variance = ", PCA2_all_var, "%)",sep=""))
-#dev.off() #this closes the plot window
+loading_plot<- ggplot(loadings_df, aes(x = PC1, y = PC2)) +
+  geom_point(alpha = 0.6) +
+  theme_bw(base_size = 16) +
+  labs(title = "PCA Loadings: Genes",
+       x = "PC1 Loading",
+       y = "PC2 Loading")
+loading_plot
 
 
 #plot MDS using Glimma - this will open a web browser page and produce an interactive graph
-#MDS (multidimensional scaling) is used to map data into 2D space
-#labels <- paste(sample_info$group, sample_info$sample_name)
-#group <- sample_info$group
-#glMDSPlot(logcounts, labels=labels, groups=group, folder="mds")
-
+#MDS (multidimensional scaling) is used to map data into 2D space - shows relationships between samples
+labels <- paste(sample_info$group, sample_info$sample_name)
+group <- sample_info$group
+glMDSPlot(logcounts, labels=labels, groups=group, folder="mds")
 
 ```
 
@@ -270,7 +272,7 @@ pcadata_plot <- data.frame(pcadata_all$variates$X[,1:2],
 
 #Porcine Transcriptome vs. DEGs
 
-data1<- read.csv("~/RP2/pig/new/processedporcinedata.csv")
+data1<- read.csv(getwd(),"/formatted_porcine_counts.csv")
 
 #First ensure that data1 is in matrix form:
 data1 <- as.matrix(data1)
