@@ -15,8 +15,8 @@ library(entropy)
 library(ggplot2)
 
 
-## Set the working directory:
-setwd("~/RP2/Yang")
+## Set the working directory
+set_wd()
 
 ## Load in data
 exp_data <- read.csv("yang_anndata.csvs/X.csv",header=F, sep = ',')
@@ -46,7 +46,7 @@ END_1_X_sd<-END_1_X[,which(sd.scores1>0)]
 
 #### CORRELATION MATRICIES ####
 cor_data_END_1<-cor(END_1_X_sd,END_1_X_sd)
-write.csv(cor_data_END_1, "~/RP2/Yang/Yang_Hypernetwork_Analysis/Correlation_matrices/cor_data_END_1.csv", row.names=FALSE)
+write.csv(cor_data_END_1, paste0(getwd(), "Correlation_matrices/cor_data_END_1.csv"), row.names=FALSE)
 #cor_data_END_1 <-read.csv("~/RP2/Yang/Yang_Hypernetwork_Analysis/Correlation_matrices/cor_data_END_1.csv")
 
 
