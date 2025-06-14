@@ -1,7 +1,12 @@
-README
-================
-Anna Davies
-2025-06-14
+---
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# README
+
+Anna Davies 2025-06-14
 
 # Functional Modelling of Melatonin Action in the Placenta
 
@@ -23,24 +28,24 @@ of the accompanying dissertation.
 
 ## Repository Structure
 
-- `porcine_data/` - This directory contains the script used to process
-  and analyse the porcine bulk RNA sequencing data, as well as
-  information on the samples.
+-   `porcine_data/` - This directory contains the script used to process
+    and analyse the porcine bulk RNA sequencing data, as well as
+    information on the samples.
 
-- `first_trimester/` - This directory contains the script used to
-  process and analyse the first trimester single-cell RNA sequencing
-  data.
+-   `first_trimester/` - This directory contains the script used to
+    process and analyse the first trimester single-cell RNA sequencing
+    data.
 
-- `third_trimester/` - This directory contains the script used to
-  process and analyse the third trimester single-cell RNA sequencing
-  data.
+-   `third_trimester/` - This directory contains the script used to
+    process and analyse the third trimester single-cell RNA sequencing
+    data.
 
-- `hypergraphs/` - This directory contains an example script of how each
-  hypergraph was created.
+-   `hypergraphs/` - This directory contains an example script of how
+    each hypergraph was created.
 
-- `README.md` - This file.
+-   `README.md` - This file.
 
-- `.gitignore` - git exclusions
+-   `.gitignore` - git exclusions
 
 <br>
 
@@ -63,8 +68,16 @@ of the accompanying dissertation.
 
 1.  `porcine_data/Porcine_Bulkseq_Preprocessing_and_Hypergraph_Analysis.R`
 
-2.  `first_trimester/First_Trimester_scRNAseq_Hypergraph_Analysis.ipynb`
+2.  `first_trimester/First_Trimester_scRNAseq_Analysis.ipynb`
 
 3.  `third_trimester/Third_Trimester_scRNAseq_Analysis.ipynb`
+
+4.  `hypergraph_analysis/Finding_1000_random_genes_for_hypergraph_control.R`
+
+5.  `hypergraph_analysis/Example_human_scRNAseq_Hypergraph_Analysis.R`
+
+6.  `hypergraph_analysis/Z_score_cals.R`
+
+7.  `hypergraph_analysis/Example_Correspondence_Analysis_of_Human_scRNAseq_Data.R`
 
 <br>
