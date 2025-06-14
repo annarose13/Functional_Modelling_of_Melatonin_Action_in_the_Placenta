@@ -29,8 +29,14 @@ of the accompanying dissertation.
 ## Repository Structure
 
 -   `porcine_data/` - This directory contains the script used to process
-    and analyse the porcine bulk RNA sequencing data, as well as
-    information on the samples.
+    and analyse the porcine bulk RNA sequencing data. Within this file
+    you will find:
+
+    -   `Porcine_workflow.Rmd` - The main markdown file used to process
+        all porcine data
+
+    -   `porcine_sample_info.csv` - This provides the metadata used from
+        the porcine study referenced in the thesis.
 
 -   `first_trimester/` - This directory contains the script used to
     process and analyse the first trimester single-cell RNA sequencing
@@ -41,11 +47,21 @@ of the accompanying dissertation.
     data.
 
 -   `hypergraphs/` - This directory contains the scripts that were used
-    to generate the control genes for hypergraph analysis, conduct the
-    hypergraph analysis, calculate the Z-scores, and perform
-    correspondence analysis. There is also a .csv that gives the list of
-    melatonin related genes that were generated form cytoscape and the
-    human orthologs of the DEGs identified from the porcine study.
+    for the hypergraph analyses. Files include:
+
+    -   `Example_Correspondence_Analysis_of_Human_scRNAseq_Data.R` - An
+        example script used to conduce correspondence analysis for all
+        clusters from both the first and third trimester datasets.
+
+    -   `Example_human_scRNAseq_Hypergraph_Analysis.R` - An example
+        script used for the generation of hypergraphs.
+
+    -   `Finding_1000_random_genes_for_hypergraph_control.R`
+
+    -   `List_of_melatonin_related_genes.csv`
+
+    -   `Z_score_cals.R` - Calculating the Z-scores for the hypergraph
+        of each cluster
 
 -   `README.md`
 
