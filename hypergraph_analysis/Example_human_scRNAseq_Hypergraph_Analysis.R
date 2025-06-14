@@ -16,8 +16,8 @@ library(ggplot2)
 ## Set the working directory:
 setwd()
 
-## Load in data (these files are generated in First_Trimester_scRNAseq_Analysis.ipynb)
-# The third trimester data files can be generated in Third_Trimester_scRNAseq_Analysis.ipynb 
+## Load in data (these files are generated in Third_Trimester_scRNAseq_Analysis.ipynb)
+# The third trimester data files can be generated in First_Trimester_scRNAseq_Analysis.ipynb 
 exp_data <- read.csv("yang_anndata.csvs/X.csv",header=F, sep = ',')
 obs_data <-read.csv("yang_anndata.csvs/obs.csv",header=T)
 var_data<- read.csv("yang_anndata.csvs/var.csv",header=T)
