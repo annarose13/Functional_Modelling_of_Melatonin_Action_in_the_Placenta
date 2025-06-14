@@ -33,7 +33,7 @@ To ensure proper understanding and execution of the code, it is recommended to f
 
 ## Getting Started
 
-1.  To use this repository, clone the repository to your local machine:
+1.  To use this repository, clone your local machine:
 
     `git clone https://github.com/annarose13/Functional_Modelling_of_Melatonin_Action_in_the_Placenta`
 
