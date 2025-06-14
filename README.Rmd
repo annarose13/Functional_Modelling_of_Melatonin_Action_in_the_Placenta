@@ -41,12 +41,16 @@ To ensure proper understanding and execution of the code, it is recommended to f
 
 3.  To run the Jupyter Notebooks (Python), ensure that JupyterLab is installed (instructions available at: <https://github.com/jupyterlab/jupyterlab/blob/main/README.me>)
 
-## It is recommended to run the scripts in the following order:
+<br>
+
+###It is recommended to run the scripts in the following order:
 
 1.   `porcine_data/Porcine_Bulkseq_Preprocessing_and_Hypergraph_Analysis.R`
 
 2.   `first_trimester/First_Trimester_scRNAseq_Hypergraph_Analysis.ipynb`
 
 3.  `third_trimester/Third_Trimester_scRNAseq_Analysis.ipynb`
+
+<br>
 
 
